@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <title>Thanh toán</title>
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .card {
+            width: 100%;
+            max-width: 450px;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .footer {
+            text-align: center;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            background-color: #f5f5f5;
+            padding: 10px 0;
+        }
+        .form-group label {
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+<div class="container">
+    <div class="card">
+        <div class="text-center">
+            <img th:src="@{/vnpay-logo.png}" style="width: 150px" class="mb-3">
+        </div>
+        <h3 class="text-center">Thanh Toán Đơn Hàng</h3>
+        <form th:action="@{/submitOrder}" method="post">
+            <div class="form-group">
+                <label for="ordertype">Loại hàng hóa:</label>
+                <select class="form-control" id="ordertype" name="ordertype" onchange="updateHiddenInputs()">
+                    <option value="topup">Nạp tiền điện thoại</option>
+                    <option value="billpayment">Thanh toán hóa đơn</option>
+                    <option value="fashion">Thời trang</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="amount">Số tiền:</label>
+                <input type="number" class="form-control" id="amount" name="amount" required value="199999">
+            </div>
+            <div class="form-group">
+                <label for="bankcode">Ngân hàng:</label>
+                <select class="form-control" id="bankcode" name="bankcode" onchange="updateHiddenInputs()">
+                    <option value="">Không chọn</option>
+                    <option value="VNPAYQR">VNPAYQR</option>
+                    <option value="VNBANK">LOCAL BANK</option>
+                    <option value="ATM">ATM CARD</option>
+                    <option value="INTCARD">INTCARD</option>
+                    <option value="VISA">VISA</option>
+                    <option value="JCB">JCB</option>
+                    <option value="NCB">Ngan hang NCB</option>
+                </select>
+                <input type="hidden" id="vnp_BankCode" name="vnp_BankCode" value="">
+                <input type="hidden" id="vnp_OrderType" name="vnp_OrderType" value="">
+            </div>
+            <div class="form-group">
+                <label for="promocode">Mã khuyến mại:</label>
+                <input type="text" class="form-control" id="promocode" name="promocode" required value="CHAOPNJ">
+            </div>
+            <div class="form-group">
+                <label for="orderInfo">Nội dung thanh toán:</label>
+                <input type="text" class="form-control" id="orderInfo" name="orderInfo" required value="Thanh toan don hang 000001">
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Thanh toán</button>
+        </form>
+    </div>
+</div>
+
+<footer class="footer">
+    <p>© Sanglv</p>
+</footer>
+
+<script>
+    function updateHiddenInputs() {
+        document.getElementById("vnp_BankCode").value = document.getElementById("bankcode").value;
+        document.getElementById("vnp_OrderType").value = document.getElementById("ordertype").value;
+    }
+</script>
+<script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+</body>
+
+</html>
