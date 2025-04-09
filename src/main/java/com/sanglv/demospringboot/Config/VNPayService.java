@@ -9,7 +9,7 @@ import java.util.*;
 
 @Service
 public class VNPayService {
-    public String createOrder(int total, String orderInfor, String bankcode, String ordertype, String promocode, String urlReturn){
+    public String createOrder(int total, String orderInfor, String bankcode, String ordertype, String promocode, String locale, String urlReturn){
         String vnp_Version = "2.1.1";
         String vnp_Command = "pay";
         String vnp_TxnRef = VNPayConfig.getRandomNumber(8);
@@ -29,8 +29,8 @@ public class VNPayService {
         vnp_Params.put("vnp_BankCode", bankcode);
         vnp_Params.put("vnp_PromoCode", promocode);
 
-        String locate = "vn";
-        vnp_Params.put("vnp_Locale", locate);
+//        String locale = "vn";
+        vnp_Params.put("vnp_Locale", locale);
 
         String urlReturn1 = VNPayConfig.vnp_Returnurl;
         vnp_Params.put("vnp_ReturnUrl", urlReturn1);

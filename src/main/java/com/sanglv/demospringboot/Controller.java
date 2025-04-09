@@ -1,5 +1,4 @@
 package com.sanglv.demospringboot;
-
 import com.sanglv.demospringboot.Config.VNPayService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,10 +24,11 @@ public class Controller {
                               @RequestParam("bankcode") String bankcode,
                               @RequestParam("ordertype") String ordertype,
                               @RequestParam("promocode") String promocode,
+                              @RequestParam("locale") String locale,
 
                               HttpServletRequest request){
         String baseUrl = request.getScheme() + "://" + request.getServerName() + ":" + request.getServerPort();
-        String vnpayUrl = vnPayService.createOrder(orderTotal, orderInfo, bankcode, ordertype, promocode, baseUrl);
+        String vnpayUrl = vnPayService.createOrder(orderTotal, orderInfo, bankcode, ordertype, promocode, locale, baseUrl);
         return "redirect:" + vnpayUrl;
     }
 
@@ -41,6 +41,7 @@ public class Controller {
         String promocode = request.getParameter("vnp_PromoCode");
         String paymentTime = request.getParameter("vnp_PayDate");
         String totalPrice = request.getParameter("vnp_Amount");
+        String locate = request.getParameter("vnp_Locale");
 
         model.addAttribute("orderId", orderInfo);
         model.addAttribute("bankcode", bankcode);
