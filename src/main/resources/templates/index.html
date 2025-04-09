@@ -68,19 +68,18 @@
             </div>
             <div class="mb-3">
                 <label for="amount" class="form-label">Số tiền:</label>
-                <input type="number" class="form-control" id="amount" name="amount" required value="199999">
+                <input type="text" class="form-control" id="amount" name="amount" required value="1000000">
             </div>
             <div class="mb-3">
                 <label for="bankcode" class="form-label">Ngân hàng:</label>
                 <select class="form-select" id="bankcode" name="bankcode" onchange="updateHiddenInputs()">
                     <option value="">Không chọn</option>
-                    <option value="VNPAYQR">VNPAYQR</option>
-                    <option value="VNBANK">LOCAL BANK</option>
-                    <option value="ATM">ATM CARD</option>
-                    <option value="INTCARD">INTCARD</option>
+                    <option value="NCB">Ngan hang NCB</option>
+                    <option value="VNPAYQR">Quét QR</option>
+                    <option value="ATM">Thẻ nội địa và tài khoản ngân hàng</option>
+                    <option value="INTCARD">Thẻ thanh toán quốc tế</option>
                     <option value="VISA">VISA</option>
                     <option value="JCB">JCB</option>
-                    <option value="NCB">Ngan hang NCB</option>
                 </select>
                 <input type="hidden" id="vnp_BankCode" name="vnp_BankCode" value="">
                 <input type="hidden" id="vnp_OrderType" name="vnp_OrderType" value="">
@@ -102,7 +101,7 @@
 
             </div>
 
-            <button type="submit" class="btn btn-primary w-100">Thanh toán</button>
+            <button type="submit" class="btn btn-primary w-100">Thanh toán Redirect</button>
         </form>
     </div>
 </div>
@@ -119,6 +118,23 @@
     }
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    window.onload = function () {
+        const now = new Date();
+
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+
+        const formattedTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
+        document.getElementById("orderInfo").value = "Thanh toan don hang thoi gian: " + formattedTime;
+    };
+</script>
+
 </body>
 
 </html>
