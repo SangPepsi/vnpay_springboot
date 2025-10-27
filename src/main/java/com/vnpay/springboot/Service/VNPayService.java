@@ -4,7 +4,6 @@ import com.vnpay.springboot.Config.VNPayConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -36,7 +35,7 @@ public class VNPayService {
         vnp_Params.put("vnp_Locale", "vn");
         vnp_Params.put("vnp_TmnCode", vnPayConfig.getTmnCode());
         vnp_Params.put("vnp_ReturnUrl", vnPayConfig.getReturnUrl());
-        vnp_Params.put("vnp_Amount", String.valueOf(total * 100)); // Số tiền nhân 100
+        vnp_Params.put("vnp_Amount", String.valueOf(total * 100));
         vnp_Params.put("vnp_TxnRef", txnRef);
         vnp_Params.put("vnp_OrderInfo", orderInfor);
         vnp_Params.put("vnp_OrderType", ordertype);
@@ -46,7 +45,7 @@ public class VNPayService {
             vnp_Params.put("vnp_BankCode", bankcode);
         }
 
-        // Thiết lập Ngày tháng
+
         Calendar cld = Calendar.getInstance(TimeZone.getTimeZone("Etc/GMT+7"));
         SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
         String vnp_CreateDate = formatter.format(cld.getTime());
@@ -66,11 +65,9 @@ public class VNPayService {
         for (String fieldName : fieldNames) {
             String fieldValue = vnp_Params.get(fieldName);
             if (fieldValue != null && !fieldValue.isEmpty()) {
-                // Encode cho cả Query URL và Hash Data
                 String encodedFieldName = URLEncoder.encode(fieldName, StandardCharsets.US_ASCII.toString());
                 String encodedFieldValue = URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII.toString());
 
-                // Dữ liệu băm (hashData) phải sử dụng fieldName và fieldValue đã được URLEncode
                 hashData.append(encodedFieldName).append('=').append(encodedFieldValue).append('&');
                 query.append(encodedFieldName).append('=').append(encodedFieldValue).append('&');
             }
@@ -81,15 +78,12 @@ public class VNPayService {
             query.setLength(query.length() - 1);
         }
 
-        // Tạo Secure Hash
         String vnp_SecureHash = vnPayConfig.hmacSHA512(vnPayConfig.getSecretKey(), hashData.toString());
 
-        // Kết hợp URL và trả về
         String queryUrl = query.toString() + "&vnp_SecureHash=" + vnp_SecureHash;
         return vnPayConfig.getPayUrl() + "?" + queryUrl;
     }
 
-    // ------------------- 2. XỬ LÝ KẾT QUẢ TRẢ VỀ (FINAL FIX) -------------------
 
     public int processVnPayReturn(Map<String, String> vnpParams) {
 
