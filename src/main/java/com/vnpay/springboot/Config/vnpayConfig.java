@@ -29,19 +29,20 @@ public class VNPayConfig {
     private String returnUrl;
     private String apiUrl;
 
-    // Phương thức tiện ích để lấy IP Address
+    // IP
     public static String getIpAddress(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("Proxy-Client-IP");
+        String ipAdress;
+        try {
+            ipAdress = request.getHeader("X-FORWARDED-FOR");
+            if (ipAdress == null) {
+                ipAdress = request.getRemoteAddr();
+            }
+        } catch (Exception e) {
+            ipAdress = "Invalid IP:" + e.getMessage();
         }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-        return "0:0:0:0:0:0:0:1".equals(ip) ? "127.0.0.1" : ip;
+        return ipAdress;
     }
 
-    // Phương thức tiện ích tạo số ngẫu nhiên cho RequestId
     public static String getRandomNumber(int len) {
         Random rnd = new Random();
         String chars = "0123456789";
@@ -55,26 +56,26 @@ public class VNPayConfig {
     /**
      * Phương thức băm HMACSHA512 (NON-STATIC)
      */
-    public String hmacSHA512(final String key, final String data) {
+    public static String hmacSHA512(final String key, final String data) {
         try {
+
             if (key == null || data == null) {
-                throw new IllegalArgumentException("Key and Data must not be null.");
+                throw new NullPointerException();
             }
-
-            Mac hmacSHA512 = Mac.getInstance("HmacSHA512");
-            SecretKeySpec secretKeySpec = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA512");
-            hmacSHA512.init(secretKeySpec);
-
-            byte[] hash = hmacSHA512.doFinal(data.getBytes(StandardCharsets.UTF_8));
-
-            StringBuilder result = new StringBuilder();
-            for (byte b : hash) {
-                result.append(String.format("%02x", b));
+            final Mac hmac512 = Mac.getInstance("HmacSHA512");
+            byte[] hmacKeyBytes = key.getBytes();
+            final SecretKeySpec secretKey = new SecretKeySpec(hmacKeyBytes, "HmacSHA512");
+            hmac512.init(secretKey);
+            byte[] dataBytes = data.getBytes(StandardCharsets.UTF_8);
+            byte[] result = hmac512.doFinal(dataBytes);
+            StringBuilder sb = new StringBuilder(2 * result.length);
+            for (byte b : result) {
+                sb.append(String.format("%02x", b & 0xff));
             }
-            return result.toString();
+            return sb.toString();
 
-        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
-            throw new RuntimeException("Lỗi tạo HMACSHA512: " + e.getMessage(), e);
+        } catch (Exception ex) {
+            return "";
         }
     }
 
