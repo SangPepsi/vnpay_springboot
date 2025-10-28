@@ -12,4 +12,4 @@ Cập nhật các biến sau với thông tin được VNPAY cung cấp sau khi 
 
 ```java
 String vnp_TmnCode = "YourTmnCode";
-String vnp_HashSecret = "YourHashSecret";
+String secretKey = "vnp_SecretKey";

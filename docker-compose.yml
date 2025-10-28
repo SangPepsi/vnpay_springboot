@@ -1,0 +1,22 @@
+# File: docker-compose.yml
+services:
+  # Tên dịch vụ Docker
+  postgresdb:
+    image: postgres:15 # Sử dụng phiên bản PostgreSQL ổn định
+    container_name: vnpay-postgres
+    restart: always
+    environment:
+      # Cấu hình DB: Spring Boot sẽ kết nối đến DB này
+      POSTGRES_DB: vnpay_pg_db
+      # Tên người dùng mà Spring Boot sẽ sử dụng
+      POSTGRES_USER: sanglv
+      # Mật khẩu
+      POSTGRES_PASSWORD: 123456
+    ports:
+      # Map port Docker (5432) ra máy host (5432)
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

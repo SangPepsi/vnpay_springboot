@@ -4,6 +4,7 @@ import com.vnpay.springboot.Config.VNPayConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -21,7 +22,7 @@ public class VNPayService {
         this.vnPayConfig = vnPayConfig;
     }
 
-    // ------------------- 1. TẠO URL THANH TOÁN -------------------
+    // ------------------- 1. TẠO URL THANH TOÁN (Đã có) -------------------
 
     public String createOrder(long total, String orderInfor, String bankcode, String ordertype,
                               String promocode, String txnRef, String clientIp) throws UnsupportedEncodingException {
@@ -44,7 +45,6 @@ public class VNPayService {
         if (bankcode != null && !bankcode.isEmpty()) {
             vnp_Params.put("vnp_BankCode", bankcode);
         }
-
 
         Calendar cld = Calendar.getInstance(TimeZone.getTimeZone("Etc/GMT+7"));
         SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
@@ -85,13 +85,118 @@ public class VNPayService {
     }
 
 
+    // ------------------- 2. XỬ LÝ TRANG TRẢ VỀ (RETURN URL - Đã có) -------------------
+
     public int processVnPayReturn(Map<String, String> vnpParams) {
 
         String vnp_SecureHash = vnpParams.get("vnp_SecureHash");
         String vnp_TxnRef = vnpParams.get("vnp_TxnRef");
         String vnp_ResponseCode = vnpParams.get("vnp_ResponseCode");
 
-        // BƯỚC 1: TẠO CHUỖI BĂM (HASH DATA) MỚI TỪ CÁC THAM SỐ GỬI VỀ
+        // BƯỚC 1 & 2: TẠO CHUỖI BĂM MỚI VÀ XÁC THỰC CHỮ KÝ
+        String newSecureHash = createNewSecureHash(vnpParams); // Gọi hàm hỗ trợ
+
+        // BƯỚC 3: XÁC THỰC CHỮ KÝ
+        if (!newSecureHash.equals(vnp_SecureHash)) {
+            log.warn("Invalid VNPAY Signature! TxnRef: {}", vnp_TxnRef);
+            return -1; // Sai chữ ký
+        }
+
+        // CHỮ KÝ HỢP LỆ -> BƯỚC 4: KIỂM TRA TRẠNG THÁI GIAO DỊCH
+        if ("00".equals(vnp_ResponseCode)) {
+            // TODO: (RẤT QUAN TRỌNG) Kiểm tra trùng lặp, số tiền và cập nhật DB.
+            boolean dbUpdateSuccess = updateOrderStatusToSuccess(vnp_TxnRef, vnpParams.get("vnp_Amount"));
+            return dbUpdateSuccess ? 1 : 0;
+        } else {
+            log.warn("VNPAY Transaction Failed. TxnRef: {}, Code: {}", vnp_TxnRef, vnp_ResponseCode);
+            updateOrderStatusToFailed(vnp_TxnRef, vnp_ResponseCode);
+            return 0;
+        }
+    }
+
+
+    // ------------------- 3. XỬ LÝ IPN (INSTANT PAYMENT NOTIFICATION) -------------------
+
+    /**
+     * Xử lý IPN (Instant Payment Notification) từ VNPAY.
+     * Đây là phương thức nền, chịu trách nhiệm chính trong việc cập nhật trạng thái giao dịch.
+     * @param vnpParams Tất cả tham số nhận được từ VNPAY.
+     * @return Map JSON phản hồi theo định dạng VNPAY: RspCode và Message.
+     */
+    @Transactional // Rất quan trọng: đảm bảo tính toàn vẹn DB
+    public Map<String, String> processVnPayIpn(Map<String, String> vnpParams) {
+
+        String vnp_SecureHash = vnpParams.get("vnp_SecureHash");
+        String vnp_TxnRef = vnpParams.get("vnp_TxnRef");
+        String vnp_ResponseCode = vnpParams.get("vnp_ResponseCode");
+        long vnp_Amount = Long.parseLong(vnpParams.get("vnp_Amount"));
+
+        // 1. TẠO CHUỖI BĂM MỚI VÀ KIỂM TRA CHECKSUM
+        String newSecureHash = createNewSecureHash(vnpParams); // Tái sử dụng logic hash
+
+        if (!newSecureHash.equals(vnp_SecureHash)) {
+            log.warn("IPN Failed: Invalid Checksum! TxnRef: {}", vnp_TxnRef);
+            return createIpnResponse("97", "Invalid Checksum"); // Sai Checksum -> 97
+        }
+
+        // --- CHỮ KÝ HỢP LỆ -> BẮT ĐẦU KIỂM TRA DB VÀ CẬP NHẬT ---
+
+        // TODO: (RẤT QUAN TRỌNG) THAY THẾ LOGIC DB GIẢ ĐỊNH SAU ĐÂY
+        /*
+        // Optional<Order> orderOpt = orderRepository.findByVnpTxnRef(vnp_TxnRef);
+        // if (orderOpt.isEmpty()) {
+        //     return createIpnResponse("01", "Order not Found"); // Mã giao dịch không tồn tại -> 01
+        // }
+        // Order order = orderOpt.get();
+
+        // // 1. Kiểm tra số tiền
+        // if (order.getAmountInVnpayFormat() != vnp_Amount) {
+        //     return createIpnResponse("04", "Invalid Amount"); // Số tiền không trùng khớp -> 04
+        // }
+
+        // // 2. Kiểm tra trạng thái (tránh xử lý trùng lặp)
+        // if (order.getStatus().equals("PAID")) {
+        //     return createIpnResponse("02", "Order already confirmed"); // Đã cập nhật trước đó -> 02
+        // }
+
+        // --- NẾU QUA TẤT CẢ CÁC KIỂM TRA, TIẾN HÀNH CẬP NHẬT DB ---
+        */
+
+        // 3. CẬP NHẬT TRẠNG THÁI CUỐI CÙNG (Đã qua kiểm tra bảo mật)
+        if ("00".equals(vnp_ResponseCode)) {
+            // Cập nhật thành công
+            updateOrderStatusToSuccess(vnp_TxnRef, String.valueOf(vnp_Amount));
+            log.info("IPN Success: Order {} updated to PAID.", vnp_TxnRef);
+        } else {
+            // Cập nhật thất bại
+            updateOrderStatusToFailed(vnp_TxnRef, vnp_ResponseCode);
+            log.warn("IPN Failed: Order {} updated to FAILED. Code: {}", vnp_TxnRef, vnp_ResponseCode);
+        }
+
+        // 4. PHẢN HỒI THÀNH CÔNG VỚI VNPAY
+        // Trả về 00 chỉ khi bạn đã thành công ghi nhận và xử lý kết quả
+        return createIpnResponse("00", "Confirm Success");
+    }
+
+
+    // ------------------- 4. CÁC PHƯƠNG THỨC HỖ TRỢ -------------------
+
+    // Phương thức giả định cho Database
+    private boolean updateOrderStatusToSuccess(String txnRef, String amount) {
+        // [Chú ý]: THAY THẾ BẰNG LOGIC CẬP NHẬT DATABASE THỰC TẾ (ví dụ: JPA repository.save)
+        // Trong môi trường thực tế, bạn sẽ kiểm tra Order ID, số tiền, và trạng thái ở đây.
+        return true;
+    }
+
+    private void updateOrderStatusToFailed(String txnRef, String responseCode) {
+        // [Chú ý]: THAY THẾ BẰNG LOGIC CẬP NHẬT DATABASE THỰC TẾ
+        // Cập nhật trạng thái đơn hàng thành FAILED/CANCELLED
+    }
+
+    /**
+     * Hàm tái tạo chuỗi Hash (dùng chung cho Return URL và IPN)
+     */
+    private String createNewSecureHash(Map<String, String> vnpParams) {
         List<String> fieldNames = new ArrayList<>(vnpParams.keySet());
         Collections.sort(fieldNames);
 
@@ -99,64 +204,33 @@ public class VNPayService {
 
         for (String fieldName : fieldNames) {
             String fieldValue = vnpParams.get(fieldName);
-
-            // QUAN TRỌNG: CHỈ LOẠI BỎ vnp_SecureHash VÀ vnp_SecureHashType KHỎI CHUỖI BĂM
             if (fieldValue != null && !fieldValue.isEmpty() &&
                     !fieldName.equals("vnp_SecureHash") &&
                     !fieldName.equals("vnp_SecureHashType")) {
-
                 try {
-                    // PHẢI URL ENCODE LẠI GIÁ TRỊ VÌ: Khi VNPAY gửi về, Spring đã tự động decode các tham số.
-                    // Nhưng VNPAY yêu cầu chuỗi băm phải có giá trị đã được encode.
                     String encodedValue = URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII.toString());
-
                     hashData.append(fieldName).append('=').append(encodedValue).append('&');
                 } catch (UnsupportedEncodingException e) {
-                    // Chỉ log lỗi, không dừng chương trình
-                    log.error("Error during URL encoding for VNPAY return params: {}", e.getMessage());
+                    log.error("Error during URL encoding for VNPAY params: {}", e.getMessage());
+                    return "";
                 }
             }
         }
 
         if (hashData.length() > 0) {
-            hashData.setLength(hashData.length() - 1); // Bỏ ký tự & cuối cùng
+            hashData.setLength(hashData.length() - 1);
         }
 
-        // BƯỚC 2: TẠO SECURE HASH MỚI
-        String newSecureHash = vnPayConfig.hmacSHA512(vnPayConfig.getSecretKey(), hashData.toString());
-
-        // BƯỚC 3: XÁC THỰC CHỮ KÝ
-        if (!newSecureHash.equals(vnp_SecureHash)) {
-            log.warn("Invalid VNPAY Signature! TxnRef: {}, Calculated Hash: {}", vnp_TxnRef, newSecureHash);
-            return -1; // Sai chữ ký
-        }
-
-        // CHỮ KÝ HỢP LỆ -> BƯỚC 4: KIỂM TRA TRẠNG THÁI GIAO DỊCH
-
-        // Kiểm tra vnp_ResponseCode (mã phản hồi VNPAY) - "00" là thành công
-        if ("00".equals(vnp_ResponseCode)) {
-            // Thành công (Chữ ký OK và ResponseCode OK)
-
-            // TODO: (RẤT QUAN TRỌNG) Kiểm tra trùng lặp, số tiền và cập nhật DB.
-            boolean dbUpdateSuccess = updateOrderStatusToSuccess(vnp_TxnRef, vnpParams.get("vnp_Amount"));
-
-            return dbUpdateSuccess ? 1 : 0; // Trả về 1 nếu cập nhật DB thành công
-
-        } else {
-            // Thất bại (Chữ ký OK nhưng ResponseCode Lỗi)
-            log.warn("VNPAY Transaction Failed. TxnRef: {}, Code: {}", vnp_TxnRef, vnp_ResponseCode);
-            updateOrderStatusToFailed(vnp_TxnRef, vnp_ResponseCode);
-            return 0;
-        }
+        return vnPayConfig.hmacSHA512(vnPayConfig.getSecretKey(), hashData.toString());
     }
 
-    // Phương thức giả định cho Database (Bạn cần thay bằng logic JPA/JDBC)
-    private boolean updateOrderStatusToSuccess(String txnRef, String amount) {
-        log.info("DB: SUCCESS - Cập nhật trạng thái đơn hàng {} thành công với số tiền {}", txnRef, amount);
-        return true;
-    }
-
-    private void updateOrderStatusToFailed(String txnRef, String responseCode) {
-        log.info("DB: FAILED - Cập nhật trạng thái đơn hàng {} thành thất bại, Code: {}", txnRef, responseCode);
+    /**
+     * Tạo Map JSON Response theo định dạng VNPAY (chỉ dùng cho IPN)
+     */
+    private Map<String, String> createIpnResponse(String rspCode, String message) {
+        Map<String, String> response = new HashMap<>();
+        response.put("RspCode", rspCode);
+        response.put("Message", message);
+        return response;
     }
 }

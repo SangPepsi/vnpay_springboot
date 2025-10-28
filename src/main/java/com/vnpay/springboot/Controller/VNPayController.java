@@ -128,6 +128,28 @@ public class VNPayController {
 
         return "vnpay_return";
     }
+    @GetMapping("/vnpay-ipn")
+    @ResponseBody // Chỉ định rằng phản hồi phải được ghi trực tiếp vào body (JSON)
+    public Map<String, String> handleVnPayIpn(HttpServletRequest request) {
+
+        // 1. Lấy tất cả tham số từ request
+        Map<String, String> vnpParams = new HashMap<>();
+        Enumeration<String> params = request.getParameterNames();
+        while (params.hasMoreElements()) {
+            String fieldName = params.nextElement();
+            String fieldValue = request.getParameter(fieldName);
+            vnpParams.put(fieldName, fieldValue);
+        }
+
+        log.info("Received VNPAY IPN Request: {}", vnpParams);
+
+        // 2. Chuyển logic xử lý và cập nhật DB vào Service
+        Map<String, String> ipnResponse = vnPayService.processVnPayIpn(vnpParams);
+
+        // 3. Trả về JSON Response
+        return ipnResponse;
+    }
+
 
     // ------------------- 4. QUERY -------------------
     @PostMapping("/process-query")
