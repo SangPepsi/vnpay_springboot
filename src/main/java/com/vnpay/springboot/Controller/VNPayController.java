@@ -95,7 +95,6 @@ public class VNPayController {
             try {
                 long vnpAmountLong = Long.parseLong(vnpAmountStr);
                 // 3. Đưa giá trị kiểu Long vào Model.
-                // Thymeleaf ở view sẽ dùng giá trị Long này để thực hiện phép chia "/ 100"
                 model.addAttribute("vnp_Amount", vnpAmountLong);
             } catch (NumberFormatException e) {
                 log.error("Error parsing vnp_Amount: {} to Long. Using default 0.", vnpAmountStr, e);
@@ -129,7 +128,7 @@ public class VNPayController {
         return "vnpay_return";
     }
     @GetMapping("/vnpay-ipn")
-    @ResponseBody // Chỉ định rằng phản hồi phải được ghi trực tiếp vào body (JSON)
+    @ResponseBody
     public Map<String, String> handleVnPayIpn(HttpServletRequest request) {
 
         // 1. Lấy tất cả tham số từ request
@@ -156,10 +155,11 @@ public class VNPayController {
     public String processQuery(
             @RequestParam("txnRef") String txnRef,
             @RequestParam("transDate") String transDate,
+            @RequestParam("transactionNo") String transactionNo,
             HttpServletRequest request, Model model) {
 
         String clientIp = VNPayConfig.getIpAddress(request);
-        String resultJson = vnPayQuery.processQuery(txnRef, transDate, clientIp);
+        String resultJson = vnPayQuery.processQuery(txnRef, transDate, clientIp, transactionNo);
         model.addAttribute("queryResult", resultJson);
         return "vnpay_query_result";
     }

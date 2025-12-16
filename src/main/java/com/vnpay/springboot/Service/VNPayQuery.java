@@ -29,10 +29,8 @@ public class VNPayQuery {
      * @param clientIp IP của máy chủ gửi yêu cầu
      * @return Chuỗi JSON phản hồi từ VNPAY
      */
-    public String processQuery(String txnRef, String transDate, String clientIp) {
-
+    public String processQuery(String txnRef, String transDate, String clientIp, String transactionNo) {
         String vnp_RequestId = VNPayConfig.getRandomNumber(8);
-
         Calendar cld = Calendar.getInstance(TimeZone.getTimeZone("Etc/GMT+7"));
         SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
         String vnp_CreateDate = formatter.format(cld.getTime());
@@ -44,10 +42,14 @@ public class VNPayQuery {
         vnp_Params.put("vnp_Command", "querydr");
         vnp_Params.put("vnp_TmnCode", vnPayConfig.getTmnCode());
         vnp_Params.put("vnp_TxnRef", txnRef);
-        vnp_Params.put("vnp_OrderInfo", "Kiem tra ket qua GD OrderId:" + txnRef);
+        vnp_Params.put("vnp_OrderInfo", "Kiem tra ket qua GD");
         vnp_Params.put("vnp_TransactionDate", transDate);
         vnp_Params.put("vnp_CreateDate", vnp_CreateDate);
         vnp_Params.put("vnp_IpAddr", clientIp);
+
+        if (transactionNo != null && !transactionNo.isEmpty()) {
+            vnp_Params.put("vnp_TransactionNo", transactionNo);
+        }
 
 
         // 2. TẠO CHUỖI HASHDATA CHÍNH XÁC (Theo thứ tự cố định, nối bằng '|', KHÔNG URL ENCODE)
@@ -75,12 +77,10 @@ public class VNPayQuery {
             jsonBody.addProperty(entry.getKey(), entry.getValue());
         }
         jsonBody.addProperty("vnp_SecureHash", vnp_SecureHash);
-
         log.info("Sending QueryDR Request: {}", jsonBody.toString());
 
 
         try {
-
             String responseJson = webClient.post()
                     .header("Content-Type", "application/json")
                     .bodyValue(jsonBody.toString())

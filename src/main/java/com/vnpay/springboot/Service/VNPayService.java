@@ -22,14 +22,13 @@ public class VNPayService {
         this.vnPayConfig = vnPayConfig;
     }
 
-    // ------------------- 1. TẠO URL THANH TOÁN (Đã có) -------------------
+    // ------------------- TẠO URL THANH TOÁN -------------------
 
     public String createOrder(long total, String orderInfor, String bankcode, String ordertype,
                               String promocode, String txnRef, String clientIp) throws UnsupportedEncodingException {
 
         Map<String, String> vnp_Params = new HashMap<>();
 
-        // Chuẩn bị Tham số VNPAY
         vnp_Params.put("vnp_Version", "2.1.0");
         vnp_Params.put("vnp_Command", "pay");
         vnp_Params.put("vnp_CurrCode", "VND");
@@ -51,7 +50,7 @@ public class VNPayService {
         String vnp_CreateDate = formatter.format(cld.getTime());
         vnp_Params.put("vnp_CreateDate", vnp_CreateDate);
 
-        cld.add(Calendar.MINUTE, 15);
+        cld.add(Calendar.MINUTE, 9);
         String vnp_ExpireDate = formatter.format(cld.getTime());
         vnp_Params.put("vnp_ExpireDate", vnp_ExpireDate);
 
@@ -77,9 +76,7 @@ public class VNPayService {
             hashData.setLength(hashData.length() - 1);
             query.setLength(query.length() - 1);
         }
-
         String vnp_SecureHash = vnPayConfig.hmacSHA512(vnPayConfig.getSecretKey(), hashData.toString());
-
         String queryUrl = query.toString() + "&vnp_SecureHash=" + vnp_SecureHash;
         return vnPayConfig.getPayUrl() + "?" + queryUrl;
     }
@@ -92,19 +89,14 @@ public class VNPayService {
         String vnp_SecureHash = vnpParams.get("vnp_SecureHash");
         String vnp_TxnRef = vnpParams.get("vnp_TxnRef");
         String vnp_ResponseCode = vnpParams.get("vnp_ResponseCode");
-
-        // BƯỚC 1 & 2: TẠO CHUỖI BĂM MỚI VÀ XÁC THỰC CHỮ KÝ
-        String newSecureHash = createNewSecureHash(vnpParams); // Gọi hàm hỗ trợ
-
-        // BƯỚC 3: XÁC THỰC CHỮ KÝ
+        String newSecureHash = createNewSecureHash(vnpParams);
         if (!newSecureHash.equals(vnp_SecureHash)) {
             log.warn("Invalid VNPAY Signature! TxnRef: {}", vnp_TxnRef);
-            return -1; // Sai chữ ký
+            return -1;
         }
 
-        // CHỮ KÝ HỢP LỆ -> BƯỚC 4: KIỂM TRA TRẠNG THÁI GIAO DỊCH
+        // CHỮ KÝ HỢP LỆ -> KIỂM TRA TRẠNG THÁI GIAO DỊCH
         if ("00".equals(vnp_ResponseCode)) {
-            // TODO: (RẤT QUAN TRỌNG) Kiểm tra trùng lặp, số tiền và cập nhật DB.
             boolean dbUpdateSuccess = updateOrderStatusToSuccess(vnp_TxnRef, vnpParams.get("vnp_Amount"));
             return dbUpdateSuccess ? 1 : 0;
         } else {
@@ -142,25 +134,25 @@ public class VNPayService {
         // --- CHỮ KÝ HỢP LỆ -> BẮT ĐẦU KIỂM TRA DB VÀ CẬP NHẬT ---
 
         // TODO: (RẤT QUAN TRỌNG) THAY THẾ LOGIC DB GIẢ ĐỊNH SAU ĐÂY
-        /*
-        // Optional<Order> orderOpt = orderRepository.findByVnpTxnRef(vnp_TxnRef);
-        // if (orderOpt.isEmpty()) {
-        //     return createIpnResponse("01", "Order not Found"); // Mã giao dịch không tồn tại -> 01
-        // }
-        // Order order = orderOpt.get();
-
-        // // 1. Kiểm tra số tiền
-        // if (order.getAmountInVnpayFormat() != vnp_Amount) {
-        //     return createIpnResponse("04", "Invalid Amount"); // Số tiền không trùng khớp -> 04
-        // }
-
-        // // 2. Kiểm tra trạng thái (tránh xử lý trùng lặp)
-        // if (order.getStatus().equals("PAID")) {
-        //     return createIpnResponse("02", "Order already confirmed"); // Đã cập nhật trước đó -> 02
-        // }
-
-        // --- NẾU QUA TẤT CẢ CÁC KIỂM TRA, TIẾN HÀNH CẬP NHẬT DB ---
-        */
+////        /*
+//         Optional<Order> orderOpt = orderRepository.findByVnpTxnRef(vnp_TxnRef);
+//         if (orderOpt.isEmpty()) {
+//             return createIpnResponse("01", "Order not Found"); // Mã giao dịch không tồn tại -> 01
+//         }
+//         Order order = orderOpt.get();
+//
+//        // // 1. Kiểm tra số tiền
+//         if (order.getAmountInVnpayFormat() != vnp_Amount) {
+//             return createIpnResponse("04", "Invalid Amount"); // Số tiền không trùng khớp -> 04
+//         }
+//
+//        // // 2. Kiểm tra trạng thái (tránh xử lý trùng lặp)
+//         if (order.getStatus().equals("PAID")) {
+//             return createIpnResponse("02", "Order already confirmed"); // Đã cập nhật trước đó -> 02
+//         }
+//
+//        // --- NẾU QUA TẤT CẢ CÁC KIỂM TRA, TIẾN HÀNH CẬP NHẬT DB ---
+//        */
 
         // 3. CẬP NHẬT TRẠNG THÁI CUỐI CÙNG (Đã qua kiểm tra bảo mật)
         if ("00".equals(vnp_ResponseCode)) {

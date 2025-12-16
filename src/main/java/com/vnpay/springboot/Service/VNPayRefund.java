@@ -33,6 +33,8 @@ public class VNPayRefund {
      * @param clientIp IP của máy chủ gửi yêu cầu
      * @return Chuỗi JSON phản hồi từ VNPAY
      */
+
+
     public String sendRefundRequest(
             String txnRef,
             String transactionNo,
@@ -48,65 +50,62 @@ public class VNPayRefund {
         SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
         String vnp_CreateDate = formatter.format(cld.getTime());
 
-
         String vnp_Amount = String.valueOf(amount * 100);
 
-        Map<String, String> requestParamsMap = new LinkedHashMap<>();
-        requestParamsMap.put("vnp_RequestId", vnp_RequestId);
-        requestParamsMap.put("vnp_Version", "2.1.0");
-        requestParamsMap.put("vnp_Command", "refund");
-        requestParamsMap.put("vnp_TmnCode", vnPayConfig.getTmnCode());
-        requestParamsMap.put("vnp_TransactionType", transType);
-        requestParamsMap.put("vnp_TxnRef", txnRef);
-        requestParamsMap.put("vnp_Amount", vnp_Amount);
-        requestParamsMap.put("vnp_OrderInfo", "Hoan tien giao dich " + txnRef);
-        requestParamsMap.put("vnp_TransactionNo", transactionNo);
-        requestParamsMap.put("vnp_TransactionDate", transDate);
-        requestParamsMap.put("vnp_CreateBy", createBy);
-        requestParamsMap.put("vnp_CreateDate", vnp_CreateDate);
-        requestParamsMap.put("vnp_IpAddr", clientIp);
+        Map<String, String> vnp_Params = new LinkedHashMap<>();
+        vnp_Params.put("vnp_RequestId", vnp_RequestId);
+        vnp_Params.put("vnp_Version", "2.1.0");
+        vnp_Params.put("vnp_Command", "refund");
+        vnp_Params.put("vnp_TmnCode", vnPayConfig.getTmnCode());
+        vnp_Params.put("vnp_TransactionType", transType);
+        vnp_Params.put("vnp_TxnRef", txnRef);
+        vnp_Params.put("vnp_Amount", vnp_Amount);
+        vnp_Params.put("vnp_OrderInfo", "Hoan tien giao dich " + txnRef);
+        vnp_Params.put("vnp_TransactionNo", transactionNo);
+        vnp_Params.put("vnp_TransactionDate", transDate);
+        vnp_Params.put("vnp_CreateBy", createBy);
+        vnp_Params.put("vnp_CreateDate", vnp_CreateDate);
+        vnp_Params.put("vnp_IpAddr", clientIp);
 
 
+        // 2. TẠO CHUỖI HASHDATA CHÍNH XÁC (Theo thứ tự cố định, nối bằng '|')
+        // THỨ TỰ CHUẨN CỦA REFUND API v2.1.0:
+        // vnp_RequestId, vnp_Version, vnp_Command, vnp_TmnCode, vnp_TransactionType, vnp_TxnRef, vnp_Amount, vnp_TransactionNo, vnp_TransactionDate, vnp_OrderInfo, vnp_CreateBy, vnp_CreateDate, vnp_IpAddr
         String hash_Data = String.join("|",
-                requestParamsMap.get("vnp_RequestId"),
-                requestParamsMap.get("vnp_Version"),
-                requestParamsMap.get("vnp_Command"),
-                requestParamsMap.get("vnp_TmnCode"),
-                requestParamsMap.get("vnp_TransactionType"),
-                requestParamsMap.get("vnp_TxnRef"),
-                requestParamsMap.get("vnp_Amount"),
-                requestParamsMap.get("vnp_TransactionNo"),
-                requestParamsMap.get("vnp_TransactionDate"),
-                requestParamsMap.get("vnp_CreateBy"),
-                requestParamsMap.get("vnp_CreateDate"),
-                requestParamsMap.get("vnp_IpAddr"),
-                requestParamsMap.get("vnp_OrderInfo")
+                vnp_Params.get("vnp_RequestId"),
+                vnp_Params.get("vnp_Version"),
+                vnp_Params.get("vnp_Command"),
+                vnp_Params.get("vnp_TmnCode"),
+                vnp_Params.get("vnp_TransactionType"),
+                vnp_Params.get("vnp_TxnRef"),
+                vnp_Params.get("vnp_Amount"),
+                vnp_Params.get("vnp_TransactionNo"),
+                vnp_Params.get("vnp_TransactionDate"),
+                vnp_Params.get("vnp_CreateBy"),
+                vnp_Params.get("vnp_CreateDate"),
+                vnp_Params.get("vnp_IpAddr"),
+                vnp_Params.get("vnp_OrderInfo")
         );
 
-
         String vnp_SecureHash = vnPayConfig.hmacSHA512(vnPayConfig.getSecretKey(), hash_Data);
-        log.info("Refund Hash Data: {}", hash_Data);
-        log.info("Refund Secure Hash: {}", vnp_SecureHash);
+        log.info("Refund Hash Data (Raw, | separated): {}", hash_Data);
 
 
 
         JsonObject jsonBody = new JsonObject();
-        for (Map.Entry<String, String> entry : requestParamsMap.entrySet()) {
+        for (Map.Entry<String, String> entry : vnp_Params.entrySet()) {
             jsonBody.addProperty(entry.getKey(), entry.getValue());
         }
         jsonBody.addProperty("vnp_SecureHash", vnp_SecureHash);
 
         log.info("Sending Refund Request: {}", jsonBody.toString());
-
-
         try {
-            // WebClient tự động gửi POST request với JSON body
             String responseJson = webClient.post()
                     .header("Content-Type", "application/json")
                     .bodyValue(jsonBody.toString())
                     .retrieve()
                     .bodyToMono(String.class)
-                    .block(); // block() để biến Monoreactive thành luồng đồng bộ
+                    .block();
 
             log.info("VNPAY Refund Response: {}", responseJson);
 
@@ -114,7 +113,6 @@ public class VNPayRefund {
 
         } catch (Exception e) {
             log.error("Error connecting to VNPAY API (Refund): {}", e.getMessage(), e);
-            // Trả về mã 99 (Lỗi nội bộ) nếu không kết nối được
             return "{\"vnp_ResponseCode\":\"99\",\"vnp_Message\":\"Lỗi kết nối API nội bộ\"}";
         }
     }

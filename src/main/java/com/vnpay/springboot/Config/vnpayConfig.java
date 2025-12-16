@@ -1,6 +1,5 @@
 package com.vnpay.springboot.Config;
 
-import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 import jakarta.servlet.http.HttpServletRequest;
@@ -8,19 +7,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
+import java.util.*;
 
 @Configuration
 @ConfigurationProperties(prefix = "vnpay")
-@Data
 public class VNPayConfig {
 
     private String tmnCode;
@@ -29,18 +19,77 @@ public class VNPayConfig {
     private String returnUrl;
     private String apiUrl;
 
-    // IP
+    // ✅ Getter & Setter
+    public String getTmnCode() {
+        return tmnCode;
+    }
+
+    public void setTmnCode(String tmnCode) {
+        this.tmnCode = tmnCode;
+    }
+
+    public String getSecretKey() {
+        return secretKey;
+    }
+
+    public void setSecretKey(String secretKey) {
+        this.secretKey = secretKey;
+    }
+
+    public String getPayUrl() {
+        return payUrl;
+    }
+
+    public void setPayUrl(String payUrl) {
+        this.payUrl = payUrl;
+    }
+
+    public String getReturnUrl() {
+        return returnUrl;
+    }
+
+    public void setReturnUrl(String returnUrl) {
+        this.returnUrl = returnUrl;
+    }
+
+    public String getApiUrl() {
+        return apiUrl;
+    }
+
+    public void setApiUrl(String apiUrl) {
+        this.apiUrl = apiUrl;
+    }
+
+    // ---------- Các hàm util bên dưới giữ nguyên ----------
     public static String getIpAddress(HttpServletRequest request) {
-        String ipAdress;
+        String ipAddress = null;
         try {
-            ipAdress = request.getHeader("X-FORWARDED-FOR");
-            if (ipAdress == null) {
-                ipAdress = request.getRemoteAddr();
+            // 1. Ưu tiên lấy IP từ header X-FORWARDED-FOR
+            ipAddress = request.getHeader("X-FORWARDED-FOR");
+
+            // Xử lý trường hợp X-FORWARDED-FOR chứa nhiều IP (do qua nhiều proxy)
+            if (ipAddress != null && ipAddress.length() > 0 && !"unknown".equalsIgnoreCase(ipAddress)) {
+                // Lấy IP đầu tiên trong chuỗi (IP thực của client)
+                if (ipAddress.contains(",")) {
+                    ipAddress = ipAddress.split(",")[0].trim();
+                }
             }
+
+            // 2. Fallback về IP trực tiếp nếu X-FORWARDED-FOR không có
+            if (ipAddress == null || ipAddress.length() == 0 || "unknown".equalsIgnoreCase(ipAddress)) {
+                ipAddress = request.getRemoteAddr();
+            }
+
+            // 3. Xử lý IPv6 Localhost (Chuyển ::1 thành 127.0.0.1)
+            // Đây là lỗi thường gặp nhất khiến VNPAY từ chối IP khi chạy dev
+            if (ipAddress != null && ("0:0:0:0:0:0:0:1".equals(ipAddress) || "::1".equals(ipAddress))) {
+                ipAddress = "127.0.0.1";
+            }
+
         } catch (Exception e) {
-            ipAdress = "Invalid IP:" + e.getMessage();
+            ipAddress = "Invalid IP:" + e.getMessage();
         }
-        return ipAdress;
+        return ipAddress;
     }
 
     public static String getRandomNumber(int len) {
@@ -53,64 +102,34 @@ public class VNPayConfig {
         return sb.toString();
     }
 
-    /**
-     * Phương thức băm HMACSHA512 (NON-STATIC)
-     */
     public static String hmacSHA512(final String key, final String data) {
         try {
-
-            if (key == null || data == null) {
-                throw new NullPointerException();
-            }
+            if (key == null || data == null) throw new NullPointerException();
             final Mac hmac512 = Mac.getInstance("HmacSHA512");
-            byte[] hmacKeyBytes = key.getBytes();
-            final SecretKeySpec secretKey = new SecretKeySpec(hmacKeyBytes, "HmacSHA512");
+            final SecretKeySpec secretKey = new SecretKeySpec(key.getBytes(), "HmacSHA512");
             hmac512.init(secretKey);
-            byte[] dataBytes = data.getBytes(StandardCharsets.UTF_8);
-            byte[] result = hmac512.doFinal(dataBytes);
+            byte[] result = hmac512.doFinal(data.getBytes(StandardCharsets.UTF_8));
             StringBuilder sb = new StringBuilder(2 * result.length);
-            for (byte b : result) {
-                sb.append(String.format("%02x", b & 0xff));
-            }
+            for (byte b : result) sb.append(String.format("%02x", b & 0xff));
             return sb.toString();
-
         } catch (Exception ex) {
             return "";
         }
     }
 
-    /**
-     * Phương thức tạo chuỗi hash từ tất cả các trường (cho OrderReturn)
-     */
     public String hashAllFields(Map<String, String> fields) {
         List<String> fieldNames = new ArrayList<>(fields.keySet());
         Collections.sort(fieldNames);
         StringBuilder sb = new StringBuilder();
-        try {
-            for (String fieldName : fieldNames) {
-                String fieldValue = fields.get(fieldName);
-                if (fieldValue != null && !fieldValue.isEmpty()
-                        && !fieldName.equals("vnp_SecureHashType")
-                        && !fieldName.equals("vnp_SecureHash")) {
-
-                    // Lưu ý: Trong phương thức hashAllFields của VNPAY, giá trị tham số cần được URLEncode trước khi nối chuỗi.
-                    // Tuy nhiên, vì các tham số VNPAY trả về đã được decode, và logic URLEncode chỉ cần thiết khi tạo URL,
-                    // ta giữ nguyên logic hiện tại, chỉ băm giá trị gốc sau khi đã sắp xếp.
-                    // Nếu bạn gặp lỗi chữ ký, hãy thử URLEncode tại đây: URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII.toString())
-
-                    sb.append(fieldName).append("=").append(fieldValue).append('&');
-                }
+        for (String fieldName : fieldNames) {
+            String fieldValue = fields.get(fieldName);
+            if (fieldValue != null && !fieldValue.isEmpty()
+                    && !fieldName.equals("vnp_SecureHashType")
+                    && !fieldName.equals("vnp_SecureHash")) {
+                sb.append(fieldName).append("=").append(fieldValue).append('&');
             }
-
-            if (sb.length() > 0) {
-                sb.setLength(sb.length() - 1);
-            }
-
-            // Gọi phương thức hmacSHA512 non-static
-            return hmacSHA512(this.secretKey, sb.toString());
-
-        } catch (Exception e) {
-            throw new RuntimeException("Lỗi tạo hash VNPAY: " + e.getMessage(), e);
         }
+        if (sb.length() > 0) sb.setLength(sb.length() - 1);
+        return hmacSHA512(this.secretKey, sb.toString());
     }
 }
